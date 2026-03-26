@@ -44,6 +44,29 @@ class Scheduler:
                 if sched_event.items() <= event.items():
                     yield entry
 
+    @staticmethod
+    def _merge_rules(config_rules, platform_rules):
+        """Merge scheduler config rules with platform rules.
+
+        Platform rules take precedence for min_version. Tree lists
+        are combined from both sources (intersection if both set).
+        """
+        if not platform_rules:
+            return config_rules
+        if not config_rules:
+            return platform_rules
+        merged = dict(config_rules)
+        if 'min_version' in platform_rules:
+            merged['min_version'] = platform_rules['min_version']
+        if 'tree' in platform_rules:
+            if 'tree' in merged:
+                config_trees = set(merged['tree'])
+                platform_trees = set(platform_rules['tree'])
+                merged['tree'] = list(config_trees & platform_trees)
+            else:
+                merged['tree'] = platform_rules['tree']
+        return merged
+
     def get_schedule(self, event, channel='node'):
         """Get the (job, runtime, platform) configs for each job to run"""
         for config in self.get_configs(event, channel):
@@ -63,4 +86,5 @@ class Scheduler:
             for platform_name in platforms:
                 platform = self._platforms.get(platform_name)
                 if platform:
-                    yield job, runtime, platform, config.rules
+                    rules = self._merge_rules(config.rules, platform.rules)
+                    yield job, runtime, platform, rules
